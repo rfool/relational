@@ -1,5 +1,5 @@
 # relational
-cute schema-aware DRY database layer for PHP, with adaptors for PostgreSQL and MySQL
+minimalistic DRY database abstraction layer for PHP, with adaptors for PostgreSQL and MySQL
 
 ## Why not PDO ?
 
