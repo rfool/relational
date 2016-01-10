@@ -34,7 +34,13 @@ Besides queryAssoc() there are additional query methods for casual purposes: que
 
 ### Why not PDO, really ?
 
-Also, PDO has a flaw with long-term consequences: to use its parameter binding interface it requires using "prepared statements" and encourages developers to use prepared statements everywhere. That contradicts their purpose. PDO clearly abuses prepared statements for parameter binding in lack of a sober parameter binding interface for non-prepared statements.
+PDO has a flaw with long-term consequences: to use its parameter binding interface it requires using "prepared statements" and encourages developers to use prepared statements everywhere. That contradicts their purpose. PDO clearly abuses prepared statements for parameter binding in lack of a sober parameter binding interface for non-prepared statements.
+
+#### Safe Parameter Binding !
+
+It seems like "relational" is the first and only PHP database abstraction layer with a real safe parameter binding interface! This can't be true, right? Right? Really?
+
+BTW: "relational" intentionelly does not provide functions for escaping data for use in SQL (as e.g. mysqli_real_escape_string()). Because there is no need for it! You could even say, "relational" protects you from yourself by not even offering you the tools that could do harm in the first place.
 
 
 ### Why no "fetch row" methods ? Doesn't it consume huge amounts of memory when we always fetch whole result at once ?
