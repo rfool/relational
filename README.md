@@ -7,7 +7,7 @@ PDO is rather complex, provides many choices and so its interfaces are rather co
 
 For example:
 
-```
+```PHP
 $connection = new PDO($dsn,$username,$password);
 $statement = $connection->prepare('SELECT * FROM users WHERE id=:id');
 $statement->execute( [ ':id' => $id ] );
@@ -18,7 +18,7 @@ while($row = $statement->fetch(PDO::FETCH_ASSOC)) {
 
 With "relational" this can be written much more straight and compact:
 
-```
+```PHP
 $db = reDBFactory::connect($config_string);
 foreach( $db->queryAssoc('SELECT * FROM users WHERE id=?',array($id)) as $row ) {
     echo $row['id'] . ' ' . $row['name'];
@@ -35,4 +35,11 @@ Besides queryAssoc() there are additional query methods for casual purposes: que
 # Why not PDO, really ?
 
 Also, PDO has a flaw with long-term consequences: to use its parameter binding interface it requires using "prepared statements" and encourages developers to use prepared statements everywhere. That contradicts their purpose. PDO clearly abuses prepared statements for parameter binding in lack of a sober parameter binding interface for non-prepared statements.
+
+
+# Why no fetch methods ? Doesn't it comsume huge amounts of memory ?
+
+No! Actually the mysqli and pgsql interface libraries (by default) do fetch the whole result when user requests to fetch the first row, anyway.
+
+So it really does not matter. The code to fetch results row-by-row in PHP is just overhead, hidden behind boilerplate code.
 
