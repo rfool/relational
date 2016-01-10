@@ -34,6 +34,5 @@ Besides queryAssoc() there are additional query methods for casual purposes: que
 
 # Why not PDO, really ?
 
-Also, PDO has a flaw with long-term consequences: to use its parameter binding interface it requires using "prepared statements" and encourages developers to use prepared statements everywhere. That contradicts their purpose. PDO clearly abuses prepared statements for parameter binding in lack of a sober parameter binding interface for non-prepared statements. That is just plain stupid.
-
+Also, PDO has a flaw with long-term consequences: to use its parameter binding interface it requires using "prepared statements" and encourages developers to use prepared statements everywhere. That contradicts their purpose. PDO clearly abuses prepared statements for parameter binding in lack of a sober parameter binding interface for non-prepared statements.
 
