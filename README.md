@@ -43,22 +43,30 @@ foreach( $db->queryAssoc('SELECT * FROM users WHERE id=?',array($id)) as $row ) 
 }
 ```
 
-Please notice that query execution, escaping of parameters and fetching of result rows is combined into a single call to queryAssoc().
+Please note that parameter passing, query execution and fetching result rows is combined in a single call to `queryAssoc()`.
 
 That's it. Concise.
 
 
-Besides queryAssoc() there are additional query methods for casual purposes: `queryArray(), queryOneArray(), queryOneAssoc(), exec(), queryOneValue(), queryOneColumn(), queryKeyValueArray()`, as well as methods for transaction control: `begin(), commit(), rollback()`.
+Besides `queryAssoc()` there are additional query methods for casual purposes: `queryArray(), queryOneArray(), queryOneAssoc(), exec(), queryOneValue(), queryOneColumn(), queryKeyValueArray()`, as well as methods for transaction control: `begin(), commit(), rollback()`.
 
 
 ### (*) Why not PDO, really ?
 
 PDO has a design-flaw with inacceptable long-term consequences: to use its parameter binding interface it requires using "prepared statements". The PDO creators even encourage developers to use prepared statements everywhere. That contradicts their purpose. PDO abuses prepared statements for parameter binding in lack of a sober parameter binding interface for non-prepared statements.
 
+#### The problems with prepared statements:
+
+* statement preparation takes extra time,
+* prepared statements will allocate ressources in database (memory, maybe semaphores, etc.),
+* the execution plan the database query planner decides for a statement can be suboptimal: it did not have chance to consider actual data at time of preparation.
+
+Prepared statements should be used with care, in selected situations only, not like a hammer.
+
 
 #### Safe Parameter Binding !
 
-"relational" provides a real parameter binding interface for PHP.
+"relational" provides a real parameter binding interface for PHP (without requiring prepared statements as in PDO).
 
 It intentionelly does NOT provide functions for escaping data for use in SQL (as e.g. `mysqli_real_escape_string()`). There is no need for it, all parameters must be passed through the parameter binding interface.
 
