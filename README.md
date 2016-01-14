@@ -1,22 +1,40 @@
 # relational
 minimalistic DRY database layer for PHP, with adaptors for PostgreSQL and MySQL
+and lightweight ORM
+
+## Yet another database abstraction layer ?
+
+Yes, but in contrast to other libraries, this one is based on a minimalistic approach, its concise and has just as little as possible overhead.
+
 
 ## Why not PDO ?
 
-PDO is rather complex, provides many choices and so its interfaces are rather complex. Unnecessarily complex.
+PDO is rather complex, provides many choices and its interfaces are unnecessarily complex.
 
 For example:
 
+#### PDO, using prepared statement(*):
+
 ```PHP
-$connection = new PDO($dsn,$username,$password);
-$statement = $connection->prepare('SELECT * FROM users WHERE id=:id');
+$db = new PDO($dsn,$username,$password);
+$statement = $db->prepare('SELECT * FROM users WHERE id=:id');
 $statement->execute( [ ':id' => $id ] );
 while($row = $statement->fetch(PDO::FETCH_ASSOC)) {
     echo $row['id'] . ' ' . $row['name'];
 }
 ```
 
-With "relational" this can be written much more straight and compact:
+#### PDO, plain (you must pass parameters directly in sql string, and care about escaping):
+
+```PHP
+$db = new PDO($dsn,$username,$password);
+$rs = $db->query('SELECT * FROM users WHERE id='.$db->quote($id));
+foreach( $rs as $row ) {
+    echo $row['id'] . ' ' . $row['name'];
+}
+```
+
+#### relational:
 
 ```PHP
 $db = reDBFactory::connect($config_string);
@@ -27,25 +45,27 @@ foreach( $db->queryAssoc('SELECT * FROM users WHERE id=?',array($id)) as $row ) 
 
 Please notice that query execution, escaping of parameters and fetching of result rows is combined into a single call to queryAssoc().
 
-Well, that's it.
-
-Besides queryAssoc() there are additional query methods for casual purposes: queryArray(), queryOneArray(), queryOneAssoc(), exec(), queryOneValue(), queryOneColumn(), queryKeyValueArray(), as well as methods for transaction control: begin(), commit(), rollback().
+That's it. Concise.
 
 
-### Why not PDO, really ?
+Besides queryAssoc() there are additional query methods for casual purposes: `queryArray(), queryOneArray(), queryOneAssoc(), exec(), queryOneValue(), queryOneColumn(), queryKeyValueArray()`, as well as methods for transaction control: `begin(), commit(), rollback()`.
 
-PDO has a flaw with long-term consequences: to use its parameter binding interface it requires using "prepared statements" and encourages developers to use prepared statements everywhere. That contradicts their purpose. PDO clearly abuses prepared statements for parameter binding in lack of a sober parameter binding interface for non-prepared statements.
+
+### (*) Why not PDO, really ?
+
+PDO has a design-flaw with inacceptable long-term consequences: to use its parameter binding interface it requires using "prepared statements". The PDO creators even encourage developers to use prepared statements everywhere. That contradicts their purpose. PDO abuses prepared statements for parameter binding in lack of a sober parameter binding interface for non-prepared statements.
+
 
 #### Safe Parameter Binding !
 
-It seems like "relational" is the first and only PHP database abstraction layer with a real safe parameter binding interface! This can't be true, right? Right? Really?
+"relational" provides a real parameter binding interface for PHP.
 
-BTW: "relational" intentionelly does not provide functions for escaping data for use in SQL (as e.g. mysqli_real_escape_string()). Because there is no need for it! You could even say, "relational" protects you from yourself by not even offering you the tools that could do harm in the first place.
+It intentionelly does NOT provide functions for escaping data for use in SQL (as e.g. `mysqli_real_escape_string()`). There is no need for it, all parameters must be passed through the parameter binding interface.
 
 
-### Why no "fetch row" methods ? Doesn't it consume huge amounts of memory when we always fetch whole result at once ?
+### Why no "fetch row" methods ? Doesn't it consume huge amounts of memory when always fetching whole result at once ?
 
-No! Actually the mysqli and pgsql interface libraries (by default) do fetch the whole result when user requests to fetch the first row, anyway.
+No! Actually the mysqli and pgsql interface libraries (by default) do fetch the whole result anyway, whenever user requests to fetch the first row.
 
-So it really does not matter. The code to fetch results row-by-row in PHP is just overhead, hidden behind boilerplate code.
+So it really does not matter. Fetching results row-by-row in PHP is just unnecessary overhead.
 
