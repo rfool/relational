@@ -81,7 +81,7 @@ class reDBPostgres extends reDB {
 				} else {
 					$v2 = array();
 					foreach( $v as $vi ) {
-						$vi = str_replace(array('"','\\'),array('\\"','\\\\'),$vi);
+						$vi = str_replace(array('\\','"'),array('\\\\','\\"'),$vi);
 						$v2[] = '"'.$vi.'"';
 					}
 					$para[$i] = '{'.implode(',',$v2).'}';
