@@ -4,6 +4,10 @@
  * For licensing, see LICENSE.md
  */
 
+
+require dirname(__FILE__).'/relational_schema.php';
+
+
 /**
  * dba related exception
  * @author rob
@@ -105,7 +109,6 @@ abstract class reDB {
 	// --- schema interface (call loadSchema() before using it!) ---
 
 	public function loadSchema() {
-		require_once( dirname(__FILE__).'/relational_schema.php' );
 		list($this->tables,$this->foreign_keys) = $this->getSchema();
 	}
 	public function getTables() {
