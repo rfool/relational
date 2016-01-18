@@ -67,7 +67,26 @@ class reDBPostgres extends reDB {
 		foreach( $para as $i=>$v ) {
 			if( $v===null ) $para[$i] = null;								// pg_query_params() will handle NULL parameter values as expected
 			else if( is_bool($v) ) $para[$i] = $v?'1':'0';					// 0 or 1 is ok (t or f would be ok too, but 0 and 1 are more universal, e.g. will also work on int fields..)
-			else if( is_array($v) ) $para[$i] = '{'.implode(',',$v).'}';	// note: this generally supports arrays containing numeric types only
+			else if( is_array($v) ) {										// note: this supports arrays containing numeric types or arrays containing strings...
+
+				$is_all_numeric = true;
+				foreach( $v as $vi ) {
+					if( !is_numeric($vi) ) {
+						$is_all_numeric = false;
+						break;
+					}
+				}
+				if( $is_all_numeric ) {
+					$para[$i] = '{'.implode(',',$v).'}';
+				} else {
+					$v2 = array();
+					foreach( $v as $vi ) {
+						$vi = str_replace(array('"','\\'),array('\\"','\\\\'),$vi);
+						$v2[] = '"'.$vi.'"';
+					}
+					$para[$i] = '{'.implode(',',$v2).'}';
+				}
+			}
 			else $para[$i] = (string)$v;
 		}
 		if( $this->query_log!==null ) {

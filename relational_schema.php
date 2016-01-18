@@ -59,8 +59,8 @@ class reDBTable {
 		}
 		$sql = 'SELECT * FROM ' . $this->getName() . $where_clause;
 		if( $order_by_clause!==null ) $sql .= ' ORDER BY ' . $order_by_clause;
-		if( $limit!==null ) $sql .= ' LIMIT ' . $limit;
-		if( $offset!==null ) $sql .= ' OFFSET ' . $offset;
+		if( $limit!==null ) $sql .= ' LIMIT ' . (int)$limit;
+		if( $offset!==null ) $sql .= ' OFFSET ' . (int)$offset;
 		foreach( $this->getDb()->queryArray($sql,$query_data) as $row ) {
 			$values = array();
 			foreach( $this->getColumns() as $column_name => $column ) $values[$column_name] = /*new reDBValue( $column, */$row[$column->getIndex()]/* )*/;
@@ -239,7 +239,7 @@ class reDBForeignKey {
 
 	public function getParentRow( reDBRow $child_row ) {
 		$match = array();
-		foreach( $this->column_references as $column=>$references_column ) $match[$references_column] = $child_row->getValue( $column );
+		foreach( $this->column_references as $column=>$references_column ) $match[$references_column] = $child_row->getValue($column);
 		$rows = $this->references_table->getRows($match);
 		$n = count($rows);
 		if( $n>1 ) throw new reException('multiple rows returned while querying a parent row');
@@ -248,7 +248,7 @@ class reDBForeignKey {
 
 	public function getChildRows( reDBRow $parent_row ) {
 		$match = array();
-		foreach( $this->column_references as $column=>$references_column ) $match[$column] = $parent_row->getValue( $references_column );
+		foreach( $this->column_references as $column=>$references_column ) $match[$column] = $parent_row->getValue($references_column);
 		return $this->table->getRows( $match );
 	}
 
