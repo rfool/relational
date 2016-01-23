@@ -27,7 +27,8 @@ echo '<pre style="font-size:8px; font-family:monospace">';
 
 $lines = preg_split('/\r\n|\r|\n/',htmlspecialchars($generated_code));
 foreach( $lines as $n=>$line ) {
-	echo $n.': '.$line."\n";
+	//echo $n.': '.$line."\n";
+	echo sprintf("% 5d:  %s\n",$n+1,$line);
 }
 
 

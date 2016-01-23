@@ -153,11 +153,13 @@ class reDBCodeGen {
 		ob_start();
 		$this->db->loadSchema();
 		echo '<'.'?'."php\n";
-		echo "/*------------------------------------------------------------------------------\n";
-		echo " (c)(r) 2008-2016 IT-Service Robert Frunzke\n";
-		echo "--------------------------------------------------------------------------------\n";
-		echo "------------------------------------------------------------------------------*/\n\n";
-
+		//echo "/**\n";
+		//echo " * @license Copyright (c) 2008-2016 Robert Frunzke. All rights reserved.\n";
+		//echo " * For licensing, see LICENSE.md\n";
+		//echo " */\n";
+		//echo "\n";
+		echo "// note: this file was generated automatically\n";
+		
 		$all_fks = $this->db->getForeignKeys();
 
 		$root_class_name = $this->get_ORM_class_name('root',false);//'reOMRoot';
