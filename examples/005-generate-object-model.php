@@ -23,12 +23,16 @@ $dbcg->setTableHints( [
 ] );
 $generated_code = $dbcg->generateAll();
 
-echo '<pre style="font-size:8px; font-family:monospace">';
+echo '<pre style="font-size:10px; font-family:monospace">';
 
-$lines = preg_split('/\r\n|\r|\n/',htmlspecialchars($generated_code));
+$html_code = highlight_string(ltrim($generated_code),true);
+//echo htmlspecialchars($html_code);exit;
+$html_code = str_replace("\n",'',$html_code);
+$lines = explode("<br />",$html_code);
 foreach( $lines as $n=>$line ) {
 	//echo $n.': '.$line."\n";
-	echo sprintf("% 5d:  %s\n",$n+1,$line);
+	$bg = ($n%2) ? 'F0F0F0' : 'FAFAFA';
+	echo sprintf("<span style=\"color:#666666\">% 5d:</span>  %s\n",$n+1,$line);
 }
 
 

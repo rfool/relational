@@ -158,7 +158,8 @@ class reDBCodeGen {
 		//echo " * For licensing, see LICENSE.md\n";
 		//echo " */\n";
 		//echo "\n";
-		echo "// note: this file was generated automatically\n";
+		echo "// this file was generated automatically\n";
+		echo "\n";
 		
 		$all_fks = $this->db->getForeignKeys();
 
