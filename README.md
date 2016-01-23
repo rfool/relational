@@ -1,17 +1,16 @@
 # relational
-minimalistic DRY database layer for PHP, with adaptors for PostgreSQL and MySQL
+minimalistic DRY database layer for PHP, with adapters for PostgreSQL and MySQL
 and lightweight ORM
 
 ## Yet another database abstraction layer ?
 
-Yes, but in contrast to other libraries, this one is based on a minimalistic approach, its concise and has just as little as possible overhead.
+Yes, but this one is based on a minimalistic approach, its concise and has just as little as possible overhead.
 
 
 ## Why not PDO ?
 
-PDO is rather complex, provides many choices and its interfaces are unnecessarily complex.
+PDO is unnecessarily complex and has design flaws.
 
-For example:
 
 #### PDO, using prepared statement(*):
 
@@ -24,7 +23,7 @@ while($row = $statement->fetch(PDO::FETCH_ASSOC)) {
 }
 ```
 
-#### PDO, plain (you must pass parameters directly in sql string, and care about escaping):
+#### PDO, plain (passing parameters directly in sql string, user must care about escaping):
 
 ```PHP
 $db = new PDO($dsn,$username,$password);
@@ -53,12 +52,12 @@ Besides `queryAssoc()` there are additional query methods for casual purposes: `
 
 ### (*) Why not PDO, really ?
 
-PDO has a design-flaw with inacceptable long-term consequences: to use its parameter binding interface it requires using "prepared statements". The PDO creators even encourage developers to use prepared statements everywhere. That contradicts their purpose. PDO abuses prepared statements for parameter binding in lack of a sober parameter binding interface for non-prepared statements.
+PDO has a design flaw: to use its parameter binding interface it requires using "prepared statements". The PDO creators encourage developers to use prepared statements everywhere. That contradicts the purpose of prepared statements. PDO abuses them for parameter binding in lack of a sober parameter binding interface for non-prepared statements.
 
 #### The problems with prepared statements:
 
 * statement preparation takes extra time,
-* prepared statements will allocate ressources in database (memory, maybe semaphores, etc.),
+* prepared statements will allocate ressources in database,
 * the execution plan the database query planner decides for a statement can be suboptimal: it did not have chance to consider actual data at time of preparation.
 
 Prepared statements should be used with care, in selected situations only, not like a hammer.
@@ -66,7 +65,7 @@ Prepared statements should be used with care, in selected situations only, not l
 
 #### Safe Parameter Binding !
 
-"relational" provides a real parameter binding interface for PHP (without requiring prepared statements as in PDO).
+"relational" provides an easy to use parameter binding interface for PHP (without requiring prepared statements as in PDO).
 
 It intentionelly does NOT provide functions for escaping data for use in SQL (as e.g. `mysqli_real_escape_string()`). There is no need for it, all parameters must be passed through the parameter binding interface.
 
