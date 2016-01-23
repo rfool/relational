@@ -24,10 +24,10 @@ class reException extends Exception {
  * @author rob
  */
 class reDBFactory {
-	private static $drivers = array(
-		'postgres'	=> array('postgres.php','reDBPostgres'),
-		'mysqli'	=> array('mysqli.php',  'reDBMySQLI'  ),
-	);
+	private static $drivers = [
+		'postgres'	=> [ 'postgres.php', 'reDBPostgres' ],
+		'mysqli'	=> [ 'mysqli.php',   'reDBMySQLI'   ],
+	];
 	/**
 	 * @param array $cfg
 	 * @param boolean $model_cache_enabled
@@ -89,14 +89,14 @@ abstract class reDB {
 
 	public function queryOneColumn( $sql, $para=null, $col_idx=0 ) {
 		if( ($rows=$this->queryArray($sql,$para))===null ) return null;
-		$col = array();
+		$col = [];
 		foreach( $rows as $row ) $col[] = $row[$col_idx];
 		return $col;
 	}
 
 	public function queryKeyValueArray( $sql, $para=null, $key_col_idx=0, $val_col_idx=1 ) {
 		if( ($rows=$this->queryArray($sql,$para))===null ) return null;
-		$arr = array();
+		$arr = [];
 		foreach( $rows as $row ) $arr[$row[$key_col_idx]] = $row[$val_col_idx];
 		return $arr;
 	}

@@ -13,14 +13,16 @@ class reDBTable {
 
 	private $db;
 	private $name;
+	private $escaped_name;
 	private $columns = null;
 	private $primary_key = null;
 	private $foreign_keys = null;
 	private $relations = null;
 
-	public function __construct( reDB $db, $name ) {
+	public function __construct( reDB $db, $name, $escaped_name ) {
 		$this->db = $db;
 		$this->name = $name;
+		$this->escaped_name = $escaped_name;
 	}
 
 	public function initialize( array $columns, $primary_key=null, $foreign_keys=null ) {
@@ -31,6 +33,8 @@ class reDBTable {
 
 	public function getDB()				{ return $this->db; }
 	public function getName()			{ return $this->name; }
+	public function getEscapedName()	{ return $this->escaped_name; }
+	public function getColumn( $name )	{ return isset($this->columns[$name]) ? $this->columns[$name] : null; }
 	public function getColumns()		{ return $this->columns; }
 	public function getPrimaryKey()		{ return $this->primary_key; }
 	public function getForeignKeys()	{ return $this->foreign_keys; }
@@ -42,11 +46,11 @@ class reDBTable {
 	}
 
 	public function getRowsArray( $match=null, $order_by_clause=null, $limit=null, $offset=null ) {
-		$rt = array();
+		$rt = [];
 		$where_clause = '';
-		$query_data = array();
+		$query_data = [];
 		if( is_array($match) && count($match) ) {
-			$where_clause = array();
+			$where_clause = [];
 			foreach( $match as $k=>$v ) {
 				if( $v===null ) {
 					$where_clause[] = $k.' IS NULL';
@@ -57,12 +61,12 @@ class reDBTable {
 			}
 			$where_clause = ' WHERE ' . implode(' AND ',$where_clause);
 		}
-		$sql = 'SELECT * FROM ' . $this->getName() . $where_clause;
+		$sql = 'SELECT * FROM ' . $this->getEscapedName() . $where_clause;
 		if( $order_by_clause!==null ) $sql .= ' ORDER BY ' . $order_by_clause;
 		if( $limit!==null ) $sql .= ' LIMIT ' . (int)$limit;
 		if( $offset!==null ) $sql .= ' OFFSET ' . (int)$offset;
 		foreach( $this->getDb()->queryArray($sql,$query_data) as $row ) {
-			$values = array();
+			$values = [];
 			foreach( $this->getColumns() as $column_name => $column ) $values[$column_name] = /*new reDBValue( $column, */$row[$column->getIndex()]/* )*/;
 			$rt[] = $values;
 		}
@@ -76,7 +80,7 @@ class reDBTable {
 	}
 
 	public function __toString() {
-		$rt = 'table: ' . $this->getName() . "\n";
+		$rt = 'table: ' . $this->getEscapedName() . "\n";
 		foreach( $this->getColumns() as $column ) $rt .= '    ' . (string)$column . "\n";
 		if( $this->primary_key===null ) $rt .= '     pk: NONE'."\n";
 		else $rt .= '    ' . (string)$this->getPrimaryKey() . "\n";
@@ -93,8 +97,8 @@ class reDBTable {
  */
 class reDBView extends reDBTable {
 
-	public function __construct( reDB $db, $name ) {
-		parent::__construct( $db, $name );
+	public function __construct( reDB $db, $name, $escaped_name ) {
+		parent::__construct( $db, $name, $escaped_name );
 	}
 
 	public function initialize( array $columns, $primary_key=null, $foreign_keys=null ) {
@@ -105,7 +109,7 @@ class reDBView extends reDBTable {
 	public function isView()			{ return true; }
 
 	public function __toString() {
-		$rt = 'view: ' . $this->getName() . "\n";
+		$rt = 'view: ' . $this->getEscapedName() . "\n";
 		foreach( $this->getColumns() as $column ) $rt .= '    ' . (string)$column . "\n";
 		//foreach( $this->getRows() as $row ) $rt .= '  ' . (string)$row . "\n";
 		return $rt;
@@ -122,31 +126,34 @@ class reDBColumn {
 
 	private $table;
 	private $name;
+	private $escaped_name;
 	private $index;
 	private $type;
 
-	public function __construct( reDBTable $table, $name, $index, $type ) {
+	public function __construct( reDBTable $table, $name, $escaped_name, $index, $type ) {
 		$this->table = $table;
 		$this->name = $name;
+		$this->escaped_name = $escaped_name;
 		$this->index = $index;
 		$this->type = $type;
 	}
 
-	public function getTable()		{ return $this->table; }
-	public function getName()		{ return $this->name; }
-	public function getIndex()		{ return $this->index; }
-	public function getType()		{ return $this->type; }
+	public function getTable()			{ return $this->table; }
+	public function getName()			{ return $this->name; }
+	public function getEscapedName()	{ return $this->escaped_name; }
+	public function getIndex()			{ return $this->index; }
+	public function getType()			{ return $this->type; }
 
 	public function getValues( $order_by_clause=null ) {
 		$order_by_clause = $order_by_clause===null ? '' : ' ORDER BY ' . $order_by_clause;
-		$rows = $this->table->getDb()->queryArray( 'SELECT ' . $this->name . ' FROM ' . $this->table->getName() . $order_by_clause );
-		$rt = array();
+		$rows = $this->table->getDb()->queryArray( 'SELECT ' . $this->escaped_name . ' FROM ' . $this->table->getEscapedName() . $order_by_clause );
+		$rt = [];
 		foreach( $rows as $row ) $rt[] = /*new reDBValue( $this, */$row[0]/* )*/;
 		return $rt;
 	}
 
 	public function __toString() {
-		return 'col: '.$this->name.' '.$this->type;
+		return 'col: '.$this->escaped_name.' '.$this->type;
 	}
 }
 
@@ -207,7 +214,7 @@ class reDBRow {
 	}
 
 	public function __toString() {
-		$rt = array();
+		$rt = [];
 		foreach( $this->values as $value ) $rt[] = (string)$value;
 		return $this->table->getName() . ': ('.implode(',',$rt).')';
 	}
@@ -238,7 +245,7 @@ class reDBForeignKey {
 	public function getColumnReferences()		{ return $this->column_references; }
 
 	public function getParentRow( reDBRow $child_row ) {
-		$match = array();
+		$match = [];
 		foreach( $this->column_references as $column=>$references_column ) $match[$references_column] = $child_row->getValue($column);
 		$rows = $this->references_table->getRows($match);
 		$n = count($rows);
@@ -247,13 +254,13 @@ class reDBForeignKey {
 	}
 
 	public function getChildRows( reDBRow $parent_row ) {
-		$match = array();
+		$match = [];
 		foreach( $this->column_references as $column=>$references_column ) $match[$column] = $parent_row->getValue($references_column);
 		return $this->table->getRows( $match );
 	}
 
 	public function __toString() {
-		$rt = array();
+		$rt = [];
 		return ' fk: ' . $this->name /*. $this->table->getName()*/ . ' = ( '.implode(', ',array_keys($this->column_references)).' ) -> '.$this->references_table->getName().' ( '.implode(', ',array_values($this->column_references)).' )';
 	}
 
@@ -323,7 +330,7 @@ class reOMRoot {
 	 * @return reOMItem[]
 	 */
 	public function _createObjectList( $class_name, $sql, array $para ) {
-		$objs = array();
+		$objs = [];
 		foreach( $this->_db->queryAssoc($sql,$para) as $row ) $objs[] = new $class_name($this,$row);
 		return $objs;
 	}
@@ -338,7 +345,7 @@ class reOMRoot {
 	 * @return reOMItem[]
 	 */
 	public function _createObjectListWithFilter( $class_name, $sql1, $sql2, array $filter=null ) {
-		$para=array();
+		$para=[];
 		if( $filter!==null ) {
 			foreach( $filter as $c=>$v ) {
 				$sql1 .= ' AND ';
@@ -368,7 +375,7 @@ class reOMRoot {
 				}
 			}
 		}
-		$objs = array();
+		$objs = [];
 		foreach( $this->_db->queryAssoc($sql1.$sql2,$para) as $row ) $objs[] = new $class_name($this,$row);
 		return $objs;
 	}
@@ -387,7 +394,7 @@ class reOMRoot {
 				return $tmp;
 			}
 		}
-		return array();
+		return [];
 	}
 
 }
@@ -430,6 +437,11 @@ abstract class reOMItem {
 	 */
 	abstract public function toArray();
 
+	/**
+	 * return item class metadata (i.e. table metadata)
+	 * @return array
+	 */
+	abstract public function _getClassMetadata();
 }
 
 

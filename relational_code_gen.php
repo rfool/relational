@@ -4,6 +4,14 @@
  * For licensing, see LICENSE.md
  */
 
+if( !function_exists('to_camel_case') ) {
+	function to_camel_case( $str, $capitalise_first_char=false ) {
+		if( $capitalise_first_char ) $str[0] = strtoupper($str[0]);
+		$func = create_function('$c','return strtoupper($c[1]);');
+		return preg_replace_callback('/_([a-z])/',$func,$str);
+	}
+}
+
 /**
  * Utility class for generating ORM wrapping code for relational database tables & views
  * @author rob
@@ -23,13 +31,17 @@ class reDBCodeGen {
 	/**
 	 * @var array
 	 */
-	private $table_hints = array();
+	private $table_hints = [];
 
 	/**
 	 * @var string
 	 */
 	private $item_base_class = 'reOMItem';
 
+	/**
+	 * @var bool
+	 */
+	private $use_fk_constraint_names = false;
 
 	/**
 	 * @param reDB $db
@@ -47,6 +59,10 @@ class reDBCodeGen {
 		$this->table_hints = $hints;
 	}
 
+	public function setUseFKConstraintNames( $use_fk_constraint_names ) {
+		$this->use_fk_constraint_names = !!$use_fk_constraint_names;
+	}
+
 	/**
 	 * @param string $item_base_class
 	 */
@@ -60,32 +76,45 @@ class reDBCodeGen {
 			// exception: 'status'
 			if( substr($name,-6)!='status' ) $name = substr($name,0,-1);
 		}
+		$name = preg_replace('/[^a-zA-Z0-9_]/','_',$name);
 		return to_camel_case($name,true);
 	}
 	private function get_ORM_use_class( $table_name ) {
-		return isset($this->table_hints[$table_name]) && isset($this->table_hints[$table_name]['skip_impl']) && $this->table_hints[$table_name]['skip_impl']===true ? false : true;
+		return isset($this->table_hints[$table_name]['skip_impl']) && $this->table_hints[$table_name]['skip_impl']===true ? false : true;
 	}
 	private function get_ORM_class_name( $table_name, $lookup_impl_class=false ) {
-		if( $lookup_impl_class && isset($this->table_hints[$table_name]) && isset($this->table_hints[$table_name]['impl_class']) ) return $this->table_hints[$table_name]['impl_class'];
+		if( $lookup_impl_class && isset($this->table_hints[$table_name]['impl_class']) ) return $this->table_hints[$table_name]['impl_class'];
 		return $this->class_prefix.$this->get_ORM_item_name($table_name,true);
 	}
 	private function get_ORM_fk_name( reDBForeignKey $fk ) {
-		// array( column => referenced_colum )
+		// [ column => referenced_colum ]
 		$cols = array_keys( $fk->getColumnReferences() );
 		foreach( $cols as $i=>$col ) {
 			if( substr($col,-3)=='_id' ) $cols[$i] = substr($col,0,-3);
 		}
-		return to_camel_case( implode('_',$cols), true );
+		$fk_name = implode('_',$cols);
+		$fk_name = preg_replace('/[^a-zA-Z0-9_]/','_',$fk_name);
+		return to_camel_case( $fk_name, true );
 	}
 	private function get_ORM_order_by( reDBTable $table ) {
 		$table_name = $table->getName();
-		if( isset($this->table_hints[$table_name]) && isset($this->table_hints[$table_name]['order_by']) ) return $this->table_hints[$table_name]['order_by'];
+		if( isset($this->table_hints[$table_name]['order_by']) ) return $this->table_hints[$table_name]['order_by'];
+		$table_pk_column_names = null;
 		if( $table->isView() ) {
-			return null;
+			$pk = isset($this->table_hints[$table_name]['pseudo_view_pk']) ? $this->table_hints[$table_name]['pseudo_view_pk'] : null;
+			if( $pk!==null ) $table_pk_column_names = is_array($pk) ? $pk : [$pk];
 		} else {
-			$pk = $table->getPrimaryKey();
-			return implode(',',$pk->getColumnNames());
+			if( ($pk=$table->getPrimaryKey())!==null ) $table_pk_column_names = $pk->getColumnNames();
 		}
+		if( $table_pk_column_names!==null ) {
+			$escaped_pk_column_names = [];
+			foreach( $table_pk_column_names as $pk_column_name ) {
+				$pk_column = $table->getColumn($pk_column_name);
+				$escaped_pk_column_names[] = $pk_column->getEscapedName();
+			}
+			return implode(',',$escaped_pk_column_names);
+		}
+		return null;
 	}
 	private function getPHPTypeForColumn( reDBColumn $column ) {
 		switch( $column->getType() ) {
@@ -114,6 +143,10 @@ class reDBCodeGen {
 		case 'USER-DEFINED':
 		default:						return $vc;
 		}
+	}
+	private function getPHPNameForColumn( reDBColumn $column ) {
+		$str = $column->getName();
+		return preg_replace('/[^a-zA-Z0-9_]/','_',$str);
 	}
 
 	public function generateAll() {
@@ -144,12 +177,24 @@ class reDBCodeGen {
 			echo " */\n";
 			echo "class ".$this->get_ORM_class_name($table_name,false)." extends ".$this->item_base_class." {\n";
 			echo "\n";
-			// public column value members (public to make them visible when using json_encode())
+
+			// table meta data
+			echo "\tprivate static \$_metadata = [ 'table_name' => '".$table->getName()."',\n";
+			echo "\t                               'is_view'    => ".($table->isView()?'true':'false').",\n";
+			echo "\t                               'columns'    => [\n";
+			foreach( $columns as $column_name=>$column ) {
+				echo "\t                                                ['".$column_name."','".$this->getPHPTypeForColumn($column)."','".$column->getType()."'],\n";
+			}
+			echo "\t                                               ]\n";
+			echo "\t                             ];\n";
+			echo "\n";
+
+			// column value members
 			foreach( $columns as $column_name=>$column ) {
 				echo "\t/**\n";
 				echo "\t * @var ".$this->getPHPTypeForColumn($column)."\n";
 				echo "\t */\n";
-				echo "\tpublic \$".$column_name.";\n";
+				echo "\tprivate \$".$this->getPHPNameForColumn($column).";\n";
 			}
 			echo "\n";
 
@@ -162,7 +207,7 @@ class reDBCodeGen {
 			echo "\tpublic function __construct( ".$root_class_name." \$root, array \$data ) {\n";
 			echo "\t\tparent::__construct(\$root);\n";
 			foreach( $columns as $column_name=>$column ) {
-				echo "\t\t\$this->".$column_name." = ".$this->getPHPCastCodeForColumn($column,"\$data['".$column_name."']").";\n";
+				echo "\t\t\$this->".$this->getPHPNameForColumn($column)." = ".$this->getPHPCastCodeForColumn($column,"\$data['".$column_name."']").";\n";
 			}
 			echo "\t}\n";
 			echo "\n";
@@ -173,11 +218,29 @@ class reDBCodeGen {
 			echo "\t * @return array\n";
 			echo "\t */\n";
 			echo "\tpublic function toArray() {\n";
-			echo "\t\treturn array(\n";
+			echo "\t\treturn [\n";
 			foreach( $columns as $column_name=>$column ) {
-				echo "\t\t\t'".$column_name."'=>\$this->".$column_name.",\n";
+				echo "\t\t\t'".$column_name."'=>\$this->".$this->getPHPNameForColumn($column).",\n";
 			}
-			echo "\t\t);\n";
+			echo "\t\t];\n";
+			echo "\t}\n";
+			echo "\n";
+
+			echo "\t/"."**\n";
+			echo "\t * return class metadata (i.e. table metadata)\n";
+			echo "\t * @return array\n";
+			echo "\t *"."/\n";
+			echo "\tpublic static function _getMetadata() {\n";
+			echo "\t\treturn self::\$_metadata;\n";
+			echo "\t}\n";
+			echo "\n";
+
+			echo "\t/"."**\n";
+			echo "\t * return item class metadata (i.e. table metadata)\n";
+			echo "\t * @return array\n";
+			echo "\t *"."/\n";
+			echo "\tpublic function _getClassMetadata() {\n";
+			echo "\t\treturn self::\$_metadata;\n";
 			echo "\t}\n";
 			echo "\n";
 
@@ -187,10 +250,35 @@ class reDBCodeGen {
 				echo "\t * @return ".$this->getPHPTypeForColumn($column)."\n";
 				echo "\t */\n";
 				echo "\tpublic function get".$this->get_ORM_item_name($column_name,false)."() {\n";
-				echo "\t\treturn \$this->".$column_name.";\n";
+				//echo "\t\treturn \$this->_data['".$column_name."'];\n";
+				echo "\t\treturn \$this->".$this->getPHPNameForColumn($column).";\n";
 				echo "\t}\n";
 			}
 			echo "\n";
+
+
+			echo "\t// --- common column value getter (legacy: will be deprecated) --- \n\n";
+			echo "\tpublic function __get( \$name ) {\n";
+			echo "\t\ttrigger_error('Direct access to entity properties is deprecated (while trying to get '.\$name.' on ".$this->get_ORM_class_name($table_name,false).")',E_USER_NOTICE);\n";
+			echo "\t\tif( property_exists(\$this,\$name) ) return \$this->\$name;\n";
+			echo "\t\t\$trace = debug_backtrace();\n";
+			echo "\t\ttrigger_error('Undefined property via __get(): '.\$name.' in '.\$trace[0]['file'].' on line '.\$trace[0]['line'],E_USER_NOTICE);\n";
+			echo "\t\treturn null;\n";
+			echo "\t}\n";
+			echo "\n";
+
+			echo "\t// --- common column value setter (legacy: will be deprecated) --- \n\n";
+			echo "\tpublic function __set( \$name, \$value ) {\n";
+			echo "\t\ttrigger_error('Direct write access to entity properties is deprecated (while trying to set '.\$name.' on ".$this->get_ORM_class_name($table_name,false).")',E_USER_NOTICE);\n";
+			echo "\t\tif( property_exists(\$this,\$name) ) {\n";
+			echo "\t\t\t\$this->\$name = \$value;\n";
+			echo "\t\t\treturn;\n";
+			echo "\t\t}\n";
+			echo "\t\t\$trace = debug_backtrace();\n";
+			echo "\t\ttrigger_error('Undefined property via __set(): '.\$name.' in '.\$trace[0]['file'].' on line '.\$trace[0]['line'],E_USER_NOTICE);\n";
+			echo "\t}\n";
+			echo "\n";
+
 
 			if( $table->isView() ) {
 
@@ -209,9 +297,12 @@ class reDBCodeGen {
 						echo "\t */\n";
 						echo "\tpublic function get".$this->get_ORM_fk_name($fk)."() {\n";
 						echo "\t\treturn \$this->_getRoot()->get".$this->get_ORM_item_name($fk_ref_table_name,true)."(";
-						$tmp = array();
+						$tmp = [];
 						// TODO: match parameter order to order of columns in primary key
-						foreach( $fk_col_refs as $column_name=>$referenced_column_name ) $tmp[] = "\$this->".$column_name;
+						foreach( $fk_col_refs as $column_name=>$referenced_column_name ) {
+							$column = $columns[$column_name];
+							$tmp[] = "\$this->".$this->getPHPNameForColumn($column);
+						}
 						echo implode(',',$tmp);
 						echo ");\n";
 						echo "\t}\n";
@@ -219,7 +310,9 @@ class reDBCodeGen {
 				}
 				echo "\n";
 
-				$use_fk_constraint_names = isset($this->table_hints[$table_name]) && isset($this->table_hints[$table_name]['use_fk_constraint_names']) ? !!$this->table_hints[$table_name]['use_fk_constraint_names'] : false;
+				$use_fk_constraint_names = isset($this->table_hints[$table_name]['use_fk_constraint_names'])
+											? !!$this->table_hints[$table_name]['use_fk_constraint_names']
+											: $this->use_fk_constraint_names;
 
 				echo "\t// --- objects referencing this one --- \n\n";
 				foreach( $all_fks as $constraint_name=>$fk ) {
@@ -227,8 +320,11 @@ class reDBCodeGen {
 						$fk_table = $fk->getTable();
 						$fk_table_name = $fk_table->getName();
 						if( $this->get_ORM_use_class($fk_table_name) ) {
-							$flt_data = array();
-							foreach( $fk->getColumnReferences() as $column_name=>$references_column_name ) $flt_data[] = "'".$column_name."'=>\$this->".$references_column_name;
+							$flt_data = [];
+							foreach( $fk->getColumnReferences() as $column_name=>$references_column_name ) {
+								$references_column = $columns[$references_column_name];
+								$flt_data[] = "'".$column_name."'=>\$this->".$this->getPHPNameForColumn($references_column);
+							}
 							echo "\t/**\n";
 							echo "\t * @return ".$this->get_ORM_class_name($fk_table_name,true)."[]\n";
 							echo "\t */\n";
@@ -251,7 +347,7 @@ class reDBCodeGen {
 								$tmp_getter_name = $this->get_ORM_item_name($fk_table_name,false);
 							}
 							echo "\tpublic function get".$tmp_getter_name."( \$filter=null, \$order_by=null ) {\n";
-							echo "\t\t return \$this->_getRoot()->get".$this->get_ORM_item_name($fk_table_name)."List(\$filter===null?array(".implode(',',$flt_data)."):array_merge(\$filter,array(".implode(',',$flt_data).")),\$order_by);\n";
+							echo "\t\t return \$this->_getRoot()->get".$this->get_ORM_item_name($fk_table_name)."List(\$filter===null?[".implode(',',$flt_data)."]:array_merge(\$filter,[".implode(',',$flt_data)."]),\$order_by);\n";
 							echo "\t}\n";
 						}
 					}
@@ -268,32 +364,22 @@ class reDBCodeGen {
 		echo "\n";
 		foreach( $this->db->getTables() as $table_name => $table ) {
 			if( $this->get_ORM_use_class($table_name) ) {
+				$table_pk_column_names = null;
 				if( $table->isView() ) {
-					$table_pk = isset($this->table_hints[$table_name]) && isset($this->table_hints[$table_name]['pseudo_view_pk']) ? $this->table_hints[$table_name]['pseudo_view_pk'] : null;
-					if( $table_pk !== null ) {
-						$table_pk = is_array($table_pk) ? $table_pk : array($table_pk);
-						$php_para = array();
-						$sql_para = array();
-						foreach( $table_pk as $column_name ) {
-							$php_para[] = '$'.$column_name;
-							$sql_para[] = $column_name.'=?';
-						}
-						// get item object by primary key
-						$class_name = $this->get_ORM_class_name($table_name,true);
-						echo "\t/**\n";
-						echo "\t * @return ".$class_name."\n";
-						echo "\t */\n";
-						echo "\tpublic function get".$this->get_ORM_item_name($table_name,true)."( ".implode(', ',$php_para)." ) {\n";
-						echo "\t\treturn \$this->_createObject('".$class_name."','SELECT * FROM ".$table_name." WHERE ".implode(' AND ',$sql_para)."',array(".implode(',',$php_para)."));\n";
-						echo "\t}\n";
-					}
+					$table_pk = isset($this->table_hints[$table_name]['pseudo_view_pk']) ? $this->table_hints[$table_name]['pseudo_view_pk'] : null;
+					if( $table_pk !== null ) $table_pk_column_names = is_array($table_pk) ? $table_pk : [$table_pk];
 				} else {
 					$table_pk = $table->getPrimaryKey();
-					$php_para = array();
-					$sql_para = array();
-					foreach( $table_pk->getColumnNames() as $column_name ) {
-						$php_para[] = '$'.$column_name;
-						$sql_para[] = $column_name.'=?';
+					if( $table_pk !== null ) $table_pk_column_names = $table_pk->getColumnNames();
+				}
+				if( $table_pk_column_names !== null ) {
+					$php_para = [];
+					$sql_para = [];
+					$table_columns = $table->getColumns();
+					foreach( $table_pk_column_names as $column_name ) {
+						$column = $table_columns[$column_name];
+						$php_para[] = '$'.$this->getPHPNameForColumn($column);
+						$sql_para[] = $column->getEscapedName().'=?';
 					}
 					// get item object by primary key
 					$class_name = $this->get_ORM_class_name($table_name,true);
@@ -301,11 +387,11 @@ class reDBCodeGen {
 					echo "\t * @return ".$class_name."\n";
 					echo "\t */\n";
 					echo "\tpublic function get".$this->get_ORM_item_name($table_name,true)."( ".implode(', ',$php_para)." ) {\n";
-					echo "\t\treturn \$this->_createObject('".$class_name."','SELECT * FROM ".$table_name." WHERE ".implode(' AND ',$sql_para)."',array(".implode(',',$php_para)."));\n";
+					echo "\t\treturn \$this->_createObject('".$class_name."','SELECT * FROM ".$table->getEscapedName()." WHERE ".implode(' AND ',$sql_para)."',[".implode(',',$php_para)."]);\n";
 					echo "\t}\n";
 				}
 				// get item object lists
-				$lists_filter = isset($this->table_hints[$table_name]) && isset($this->table_hints[$table_name]['lists_filter']) ? $this->table_hints[$table_name]['lists_filter'] : "";
+				$lists_filter = isset($this->table_hints[$table_name]['lists_filter']) ? $this->table_hints[$table_name]['lists_filter'] : "";
 				$default_order_by = $this->get_ORM_order_by($table);
 				$class_name = $this->get_ORM_class_name($table_name,true);
 				echo "\t/**\n";
@@ -313,16 +399,18 @@ class reDBCodeGen {
 				echo "\t */\n";
 				echo "\tpublic function get".$this->get_ORM_item_name($table_name,true)."List( \$filter=null, \$order_by=null ) {\n";
 				echo "\t\tif( \$order_by===null ) \$order_by = '".$default_order_by."';\n";
-				echo "\t\treturn \$this->_createObjectListWithFilter('".$class_name."','SELECT * FROM ".$table_name." WHERE true".($lists_filter?" AND (".$lists_filter.")":"")."',\$order_by?' ORDER BY '.\$order_by:'',\$filter);\n";
+				echo "\t\treturn \$this->_createObjectListWithFilter('".$class_name."','SELECT * FROM ".$table->getEscapedName()." WHERE true".($lists_filter?" AND (".$lists_filter.")":"")."',\$order_by?' ORDER BY '.\$order_by:'',\$filter);\n";
 				echo "\t}\n\n";
 			}
 		}
 		echo "}\n\n";
 
-		echo "/*\n";
+		/***
+		echo "/"."*\n";
 		echo "source schema:\n\n";
 		echo (string)$this->db;
-		echo "*/\n\n";
+		echo "*"."/\n\n";
+		***/
 
 		return ob_get_clean();
 	}

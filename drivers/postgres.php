@@ -117,9 +117,10 @@ class reDBPostgres extends reDB {
 		// get tables
 		foreach( $this->queryAssoc('SELECT table_name,table_type FROM information_schema.tables WHERE table_schema=? ORDER BY table_type,table_name',$schema) as $table_def ) {
 			$table_name = $table_def['table_name'];
+			$table_escaped_name = pg_escape_identifier($this->conn,$table_name);
 			switch( $table_def['table_type'] ) {
-			case 'VIEW':       $tables[$table_name] = new reDBView(  $this, $table_name ); break;
-			case 'BASE TABLE': $tables[$table_name] = new reDBTable( $this, $table_name ); break;
+			case 'VIEW':       $tables[$table_name] = new reDBView(  $this, $table_name, $table_escaped_name ); break;
+			case 'BASE TABLE': $tables[$table_name] = new reDBTable( $this, $table_name, $table_escaped_name ); break;
 			}
 		}
 		// get columns
@@ -127,7 +128,8 @@ class reDBPostgres extends reDB {
 			$column_name = $def['column_name'];
 			$column_index = intval($def['ordinal_position'],10)-1;
 			$column_table_name = $def['table_name'];
-			$column = new reDBColumn( $tables[$column_table_name], $column_name, $column_index, $def['data_type'] );
+			$column_escaped_name = pg_escape_identifier($this->conn,$column_name);
+			$column = new reDBColumn( $tables[$column_table_name], $column_name, $column_escaped_name, $column_index, $def['data_type'] );
 			$all_columns[] = $column;
 			$columns[$column_table_name][$column_name] = $column;
 		}
