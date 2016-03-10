@@ -17,7 +17,7 @@ $db = reDBFactory::connect($db_config);
 
 $names = $db->queryOneColumn('SELECT DISTINCT name FROM customer_list');
 var_dump( $names );
-var_dump( $db->queryAssoc('SELECT * FROM customer_list WHERE name = ANY(?)',array($names)) );
+var_dump( $db->queryAssoc2('SELECT * FROM customer_list WHERE name = ANY(?)',array($names)) );
 
 ?>
 </body>

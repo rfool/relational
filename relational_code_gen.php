@@ -349,7 +349,7 @@ class reDBCodeGen {
 								// --> use extended style in these cases!
 								$tmp_getter_name = $this->get_ORM_item_name($fk_table_name,false);
 							}
-							echo "\tpublic function get".$tmp_getter_name."( \$filter=null, \$order_by=null ) {\n";
+							echo "\tpublic function get".$tmp_getter_name."( array \$filter=null, \$order_by=null ) {\n";
 							echo "\t\t return \$this->_getRoot()->get".$this->get_ORM_item_name($fk_table_name)."List(\$filter===null?[".implode(',',$flt_data)."]:array_merge(\$filter,[".implode(',',$flt_data)."]),\$order_by);\n";
 							echo "\t}\n";
 						}
@@ -400,7 +400,7 @@ class reDBCodeGen {
 				echo "\t/**\n";
 				echo "\t * @return ".$class_name."[] \n";
 				echo "\t */\n";
-				echo "\tpublic function get".$this->get_ORM_item_name($table_name,true)."List( \$filter=null, \$order_by=null ) {\n";
+				echo "\tpublic function get".$this->get_ORM_item_name($table_name,true)."List( array \$filter=null, \$order_by=null ) {\n";
 				echo "\t\tif( \$order_by===null ) \$order_by = '".$default_order_by."';\n";
 				echo "\t\treturn \$this->_createObjectListWithFilter('".$class_name."','SELECT * FROM ".$table->getEscapedName()." WHERE true".($lists_filter?" AND (".$lists_filter.")":"")."',\$order_by?' ORDER BY '.\$order_by:'',\$filter);\n";
 				echo "\t}\n\n";

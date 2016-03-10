@@ -83,6 +83,13 @@ abstract class reDB {
 	public abstract function exec( $sql, $para=null );
 	public abstract function getLastInsertId();
 
+
+	// WIP interface for queries with typed result data ...
+	public function queryArray2( $sql, $para=null )			{ return $this->queryArray($sql,$para); }
+	public function queryAssoc2( $sql, $para=null )			{ return $this->queryAssoc($sql,$para); }
+	public function queryOneAssoc2( $sql, $para=null )		{ return $this->queryOneAssoc($sql,$para); }
+
+
 	public function queryOneValue( $sql, $para=null ) {
 		return ($row=$this->queryOneArray($sql,$para))===null || !isset($row[0]) ? null : $row[0];
 	}

@@ -15,7 +15,7 @@ require '../relational.php';
 require 'config.php';
 $db = reDBFactory::connect($db_config);
 
-var_dump( $db->queryArray('SELECT * FROM customer_list ORDER BY id') );
+var_dump( $db->queryArray2('SELECT * FROM customer_list ORDER BY id') );
 
 ?>
 </body>

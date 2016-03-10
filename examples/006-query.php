@@ -15,7 +15,9 @@ require '../relational.php';
 require 'config.php';
 $db = reDBFactory::connect($db_config);
 
-var_dump( $db->queryAssoc2('SELECT * FROM customer_list ORDER BY id') );
+//var_dump( $db->queryAssoc('SELECT array[1,2,3]::integer[] AS foo') );
+//var_dump( $db->queryAssoc2('SELECT array[1,2,3]::integer[] AS foo') );
+var_dump( $db->queryAssoc2('SELECT * FROM film ORDER BY title') );
 
 ?>
 </body>

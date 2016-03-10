@@ -28,11 +28,10 @@ class reDBPostgres extends reDB {
 	}
 
 	public function queryArray( $sql, $para=null ) {
-		$rt = array();
-		if( ($rs=$this->querySqlRessource($sql,$para))!==null ) {
-			while( $row=pg_fetch_row($rs) ) $rt[] = $row;
-		}
-		return $rt;
+		if( ($rs=$this->querySqlRessource($sql,$para))===null ) return array();
+		$r = array();
+		while( ($row=pg_fetch_row($rs))!==false ) $r[] = $row;
+		return $r;
 	}
 
 	public function queryOneArray( $sql, $para=null ) {
@@ -56,6 +55,27 @@ class reDBPostgres extends reDB {
 		return ($row=$this->queryOneArray('SELECT lastval()'))===null ? null : $row[0];
 	}
 
+	private function prepareSqlParam( $v, $is_part_of_array_literal=false ) {
+		if( $v===null ) {								// pg_query_params() will handle NULL parameter values as expected
+			return $is_part_of_array_literal ? 'null' : null;
+		} else if( is_bool($v) ) {						// 0 or 1 is ok (t or f would be ok too, but 0 and 1 are more universal, e.g. will also work on int fields..)
+			return $v ? '1' : '0';
+		} else if( is_array($v) ) {						// postgres arrays are complicated ...
+			//$para[$i] = '{'.implode(',',$v).'}';		// would support arrays containing numeric types only
+			return $this->prepareSqlArrayParam($v);
+		}
+		if( $is_part_of_array_literal ) {
+			if( is_numeric($v) ) return $v;
+			else return '"'.str_replace('"','\\"',str_replace('\\','\\\\',$v)).'"';
+		}
+		return (string)$v;
+	}
+	private function prepareSqlArrayParam( $arr ) {
+		$r = array();
+		foreach( $arr as $v ) $r[] = $this->prepareSqlParam($v,true);
+		return '{'.implode(',',$r).'}';
+	}
+
 	private function querySqlRessource( $sql, $para=null ) {
 		if( $para===null ) $para = array();
 		else if( !is_array($para) ) $para = array( $para );
@@ -65,29 +85,7 @@ class reDBPostgres extends reDB {
 		for( $i=1; isset($sql_parts[$i]); ++$i ) $sql_pg .= '$'.$i.$sql_parts[$i];
 		// prepare typed data in parameter array
 		foreach( $para as $i=>$v ) {
-			if( $v===null ) $para[$i] = null;								// pg_query_params() will handle NULL parameter values as expected
-			else if( is_bool($v) ) $para[$i] = $v?'1':'0';					// 0 or 1 is ok (t or f would be ok too, but 0 and 1 are more universal, e.g. will also work on int fields..)
-			else if( is_array($v) ) {										// note: this supports arrays containing numeric types or arrays containing strings...
-
-				$is_all_numeric = true;
-				foreach( $v as $vi ) {
-					if( !is_numeric($vi) ) {
-						$is_all_numeric = false;
-						break;
-					}
-				}
-				if( $is_all_numeric ) {
-					$para[$i] = '{'.implode(',',$v).'}';
-				} else {
-					$v2 = array();
-					foreach( $v as $vi ) {
-						$vi = str_replace(array('\\','"'),array('\\\\','\\"'),$vi);
-						$v2[] = '"'.$vi.'"';
-					}
-					$para[$i] = '{'.implode(',',$v2).'}';
-				}
-			}
-			else $para[$i] = (string)$v;
+			$para[$i] = $this->prepareSqlParam($v);
 		}
 		if( $this->query_log!==null ) {
 			// with quick & dirty query profiling
@@ -103,6 +101,111 @@ class reDBPostgres extends reDB {
 		return $rs;
 	}
 
+
+	private function parseSqlArray( $s, $et, $start=0, &$end=NULL ) {
+		if( !isset($s[0]) || $s[0]!='{' ) return null;
+		$return = array();
+		$br = 0;
+		$string = false;
+		$quote = '';
+		$len = strlen($s);
+		$v = '';
+		for( $i=$start+1; $i<$len; ++$i ) {
+			$ch = $s[$i];
+			if( !$string && $ch=='}' ) {
+				if( $v!=='' || !empty($return) ) $return[] = $this->cvtSqlDataToPHP($v,$et);
+				$end = $i;
+				break;
+			} else if( !$string && $ch=='{' ) {
+				$v = $this->parseSqlArray($s,$et,$i,$i);
+			} else if( !$string && $ch==',' ) {
+				$return[] = $this->cvtSqlDataToPHP($v,$et);
+				$v = '';
+			} else if( !$string && ($ch=='"'||$ch=="'") ) {
+				$string = true;
+				$quote = $ch;
+			} else if( $string && $ch==$quote && $s[$i-1]=="\\" ) {
+				$v = substr($v,0,-1).$ch;
+			} else if( $string && $ch==$quote && $s[$i-1]!="\\" ) {
+				$string = false;
+			} else {
+				$v .= $ch;
+			}
+		}
+		return $return;
+	}
+	private function cvtSqlDataToPHP( $v, $t ) {
+		if( isset($t[0]) && $t[0]==='_' ) {
+			$et = substr($t,1);
+			if( ($varr=$this->parseSqlArray($v,$et))===null ) return null;
+			return $varr;
+		}
+		switch( $t ) {
+		case 'int2': return intval($v,10);
+		case 'int4': return intval($v,10);
+		case 'int8': return intval($v,10);
+		case 'bool': return $v==='t' ? true : false;
+		case 'float4': return floatval($v);
+		case 'float8': return floatval($v);
+		}
+		return $v;
+	}
+	private function cvtSqlDataRowToPhp( &$row, &$field_types ) {
+		foreach( $row as $fn => $v ) {
+			if( $v!==null ) { // null values were already converted by pg_fetch_all()
+				$row[$fn] = $this->cvtSqlDataToPHP($v,$field_types[$fn]);
+			}
+		}
+	}
+	private function getPgFieldTypesByName( $rs, $r0 ) {
+		//$ncols = pg_num_fields($rs);
+		$field_types = [];
+		foreach( $r0 as $fn=>$v0 ) {
+			$fi = pg_field_num($rs,$fn);
+			$ft = pg_field_type($rs,$fi);
+			$field_types[$fn] = $ft;
+		}
+		//var_dump($field_types);exit;
+		return $field_types;
+	}
+	private function getPgFieldTypesByIdx( $rs, $r0 ) {
+		//$ncols = pg_num_fields($rs);
+		$field_types = [];
+		foreach( $r0 as $fi=>$v0 ) {
+			$ft = pg_field_type($rs,$fi);
+			$field_types[$fi] = $ft;
+		}
+		//var_dump($field_types);exit;
+		return $field_types;
+	}
+
+	// WIP interface for queries with typed result data ...
+	public function queryArray2( $sql, $para=null ) {
+		if( ($rs=$this->querySqlRessource($sql,$para))===null ) return array();
+		if( ($row0=pg_fetch_row($rs))===false ) return array();
+		$field_types = $this->getPgFieldTypesByIdx($rs,$row0);
+		$this->cvtSqlDataRowToPhp($row0,$field_types);
+		$r = array($row0);
+		while( ($row=pg_fetch_row($rs))!==false ) {
+			$this->cvtSqlDataRowToPhp($row,$field_types);
+			$r[] = $row;
+		}
+		return $r;
+	}
+	public function queryAssoc2( $sql, $para=null ) {
+		$rs = $this->querySqlRessource($sql,$para);
+		if( ($r=pg_fetch_all($rs))===false || count($r)===0 ) return array();
+		$field_types = $this->getPgFieldTypesByName($rs,$r[0]);
+		foreach( $r as $row_idx => $row ) $this->cvtSqlDataRowToPhp($r[$row_idx],$field_types);
+		return $r;
+	}
+	public function queryOneAssoc2( $sql, $para=null ) {
+		$rs = $this->querySqlRessource($sql,$para);
+		if( ($row=pg_fetch_assoc($rs))===false ) return null;
+		$field_types = $this->getPgFieldTypesByName($rs,$row);
+		$this->cvtSqlDataRowToPhp($row,$field_types);
+		return $row;
+	}
 
 
 	protected function getSchema() {

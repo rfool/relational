@@ -404,7 +404,7 @@ class reOMRoot {
  * base class for object models generated item classes
  * @author rob
  */
-abstract class reOMItem {
+abstract class reOMItem implements JsonSerializable {
 
 	/**
 	 * @var reOMRoot
@@ -442,6 +442,11 @@ abstract class reOMItem {
 	 * @return array
 	 */
 	abstract public function _getClassMetadata();
+
+	public function jsonSerialize() {
+		return $this->toArray();
+	}
+
 }
 
 
